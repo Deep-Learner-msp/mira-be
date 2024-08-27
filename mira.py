@@ -219,7 +219,7 @@ Provide very crisp and smaller answers in MD Format.
 #         store[session_id] = ChatMessageHistory()
 #     return store[session_id]
 
-llm = ChatOpenAI(model="gpt-4o-mini",temperature=0.7, streaming=True)
+llm = ChatOpenAI(model="gpt-4o",temperature=0.7, streaming=True)
 
 memory_prompt = PromptTemplate(
     input_variables=["chat_history", "input", "memory_store"], template=memory_template
