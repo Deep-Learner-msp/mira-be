@@ -21,7 +21,16 @@ from langchain_core.prompts import PromptTemplate
 session_id = str(uuid.uuid4())
 
 
-load_dotenv()
+
+os.environ['OPENAI_API_KEY'] = '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'
+os.environ['OAUTH_GOOGLE_CLIENT_ID'] = '902039740947-j1q2ejp4ojk8e4eceouokpa888oq9g5t.apps.googleusercontent.com'
+os.environ['OAUTH_GOOGLE_CLIENT_SECRET'] = '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'
+os.environ['CHAINLIT_AUTH_SECRET'] = 'dDcmSt3WU40D17M>?0f_x4~emO3h3dYoJQ~.I>DmvVH^iz8?6hT7/fIoV~:7L^KU'
+os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
+os.environ['LANGCHAIN_API_KEY'] = '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'
+os.environ['LANGCHAIN_PROJECT'] = 'mira-dev'
+
 
 memory_template = """
 
