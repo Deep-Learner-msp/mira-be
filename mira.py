@@ -208,7 +208,7 @@ Memory store: {memory_store}
 Chat history: {chat_history}
 User input: {input}
 
-Answer in MD Format.
+Provide very crisp and smaller answers in MD Format.
 
 
 """
