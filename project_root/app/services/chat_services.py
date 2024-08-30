@@ -8,19 +8,34 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai.chat_models import ChatOpenAI
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain.schema import StrOutputParser
+import os
+from getpass import getpass
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_openai.chat_models import ChatOpenAI
+from langchain.chains import LLMChain
+from langchain.memory import ConversationBufferMemory
+from langchain_core.prompts import PromptTemplate
 
-from models.chat_models import UserSession, ChatMessage
+from models.chat_models import UserSession, ChatMessage, MemoryStore
 from schemas.chat_schemas import UserQuestion, SessionStatus, MessageResponse
 from prompts.mira_template import mira_template
+from prompts.memory_template import memory_template
 
+from typing import List
+from models.chat_models import ChatMessage
 # Load environment variables
 load_dotenv()
 
-store = {}
+def get_chat_history(db: Session, session_id: str) -> str:
+    messages: List[ChatMessage] = db.query(ChatMessage).filter(
+        ChatMessage.session_id == session_id
+    ).all()
+    
+    chat_history = ""
+    for msg in messages:
+        chat_history += f"{'Human' if msg.message_type == 'user' else 'AI'}: {msg.content}\n"
+    return chat_history
 
 async def create_session(user_question: UserQuestion, background_tasks: BackgroundTasks, db: Session):
     if user_question.session_id:
@@ -62,39 +77,47 @@ async def get_user_sessions(user_id: str, db: Session):
     user_sessions = db.query(UserSession).filter(UserSession.user_id == user_id).all()
     return {"user_id": user_id, "session_ids": [session.session_id for session in user_sessions]}
 
-def get_session_history(session_id: str):
-    if session_id not in store:
-        store[session_id] = ChatMessageHistory()
-    return store[session_id]
+async def get_all_sessions(db: Session):
+    user_sessions = db.query(UserSession).all()
+    return {"session_ids": [session.session_id for session in user_sessions]}
 
-async def text_sql_generation(question: str, session_id: str):
+async def text_sql_generation(question: str, session_id: str, db: Session):
     try:
-        model = ChatOpenAI(streaming=True)
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", mira_template),
-                MessagesPlaceholder(variable_name="history"),
-                ("human", "{question}"),
-            ]
-        )
-        runnable = prompt | model | StrOutputParser()
+        # Fetch or create memory for the session
+        memory_store = db.query(MemoryStore).filter(MemoryStore.session_id == session_id).first()
+        if not memory_store:
+            memory_store = MemoryStore(session_id=session_id, memory="")
+            db.add(memory_store)
+            db.commit()
 
-        # Wrap the runnable with history management
-        with_message_history = RunnableWithMessageHistory(
-            runnable,
-            get_session_history,
-            input_messages_key="question",
-            history_messages_key="history",
+        llm = ChatOpenAI(model="gpt-4o",temperature=0.7, streaming=True)
+
+        memory_prompt = PromptTemplate(
+            input_variables=["chat_history", "input", "memory_store"], template=memory_template
         )
-        # Generate a response using the LangChain setup
-        response = await asyncio.to_thread(
-            with_message_history.invoke,
-            {"question": question},
-            {"configurable": {"session_id": session_id}}
+        memory_chain = LLMChain(
+            llm=llm, prompt=memory_prompt, verbose=True
         )
+        mira_prompt = PromptTemplate(
+            input_variables=["chat_history", "input", "memory_store"], template=mira_template
+        )
+        history = get_chat_history(db, session_id)
+        mira_chain = LLMChain(
+            llm=llm, prompt=mira_prompt, verbose=False
+        )
+        
+        # Use the memory from the database
+        updated_memory = memory_chain.predict(memory_store=memory_store.memory, input=question, chat_history=history)
+        response = mira_chain.predict(input=question, memory_store=updated_memory, chat_history=history)
+
+        # Update the memory in the database
+        memory_store.memory = updated_memory
+        db.commit()
+
         return response
+
     except Exception as e:
-        # Log the error and return a fallback response
+        db.rollback()
         print(f"Error in text generation: {str(e)}")
         return f"I apologize, but I encountered an error while processing your request. Could you please rephrase your question?"
 
@@ -103,7 +126,7 @@ async def process_chat(session_id: str, question: str, db: Session):
         user_message = ChatMessage(session_id=session_id, message_type="user", content=question)
         db.add(user_message)
         db.commit()
-        bot_response_future = asyncio.create_task(text_sql_generation(question, session_id))
+        bot_response_future = asyncio.create_task(text_sql_generation(question, session_id, db))
 
         # Wait for the bot response
         bot_response = await bot_response_future

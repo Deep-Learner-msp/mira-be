@@ -20,3 +20,9 @@ class ChatMessage(Base):
     user_session = relationship("UserSession", back_populates="messages")
 
 UserSession.messages = relationship("ChatMessage", order_by=ChatMessage.id, back_populates="user_session")
+
+class MemoryStore(Base):
+    __tablename__ = "memory_store"
+
+    session_id = Column(String, primary_key=True, index=True)
+    memory = Column(Text, default="")
