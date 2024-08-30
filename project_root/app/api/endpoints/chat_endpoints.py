@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Path, Qu
 from sqlalchemy.orm import Session
 from database import get_db
 from schemas.chat_schemas import UserQuestion, SessionStatus, MessageResponse
-from services.chat_services import create_session, get_session_status, get_user_sessions, process_chat, get_messages
+from services.chat_services import create_session, get_session_status, get_user_sessions, get_all_sessions, get_messages
 from typing import List
 
 router = APIRouter()
@@ -19,6 +19,10 @@ async def get_status(session_status: SessionStatus, db: Session = Depends(get_db
 async def user_sessions(user_id: str, db: Session = Depends(get_db)):
     return await get_user_sessions(user_id, db)
 
+@router.get("/all_sessions")
+async def all_sessions(db: Session = Depends(get_db)):
+    return await get_all_sessions(db)
+
 @router.get("/messages/{session_id}", response_model=List[MessageResponse])
 async def messages(
     session_id: str = Path(..., description="Session ID to retrieve messages for"),
@@ -26,3 +30,4 @@ async def messages(
     db: Session = Depends(get_db)
 ):
     return await get_messages(session_id, limit, db)
+
