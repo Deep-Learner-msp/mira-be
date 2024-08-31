@@ -82,7 +82,7 @@ from datetime import datetime, timezone
 async def get_all_sessions(db: Session):
     user_sessions = db.query(UserSession).all()
     return {
-        "generatedAt": user_sessions[0].created_at.isoformat() if user_sessions else datetime.now(timezone.     ).isoformat(),
+        "generatedAt": user_sessions[0].created_at.isoformat() if user_sessions else datetime.now(timezone.utc).isoformat(),
         "sessions": [
             {
                 "sessionId": session.sessionId,
