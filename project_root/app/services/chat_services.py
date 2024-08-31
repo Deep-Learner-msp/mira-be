@@ -27,9 +27,9 @@ from models.chat_models import ChatMessage
 # Load environment variables
 load_dotenv()
 
-def get_chat_history(db: Session, session_id: str) -> str:
+def get_chat_history(db: Session, sessionId: str) -> str:
     messages: List[ChatMessage] = db.query(ChatMessage).filter(
-        ChatMessage.session_id == session_id
+        ChatMessage.sessionId == sessionId
     ).all()
     
     chat_history = ""
@@ -38,55 +38,67 @@ def get_chat_history(db: Session, session_id: str) -> str:
     return chat_history
 
 async def create_session(user_question: UserQuestion, background_tasks: BackgroundTasks, db: Session):
-    if user_question.session_id:
-        existing_session = db.query(UserSession).filter(UserSession.session_id == user_question.session_id).first()
+    if user_question.sessionId:
+        existing_session = db.query(UserSession).filter(UserSession.sessionId == user_question.sessionId).first()
         if not existing_session:
             raise HTTPException(status_code=404, detail="Session not found")
-        session_id = user_question.session_id
+        sessionId = user_question.sessionId
     else:
-        session_id = str(uuid.uuid4())
-        new_session = UserSession(session_id=session_id)
+        sessionId = str(uuid.uuid4())
+        new_session = UserSession(sessionId=sessionId, session_name=user_question.question[:20])
         db.add(new_session)
         db.commit()
 
-    background_tasks.add_task(process_chat, session_id, user_question.question, db)
-    return {"message": "Chat request received", "session_id": session_id}
+    background_tasks.add_task(process_chat, sessionId, user_question.question, db)
+    return {"message": "Chat request received", "sessionId": sessionId}
 
 async def get_session_status(session_status: SessionStatus, db: Session):
     latest_message = db.query(ChatMessage).filter(
-        ChatMessage.session_id == session_status.session_id
+        ChatMessage.sessionId == session_status.sessionId
     ).order_by(desc(ChatMessage.id)).first()
 
     if not latest_message:
         raise HTTPException(status_code=404, detail="Session not found")
 
     message_count = db.query(ChatMessage).filter(
-        ChatMessage.session_id == session_status.session_id
+        ChatMessage.sessionId == session_status.sessionId
     ).count()
 
-    status = "completed" if latest_message.message_type == "bot" else "processing"
-    loading = status != "completed"
+    status = "Completed processing your question" if latest_message.message_type == "bot" else "Processing your question"
+    loading = status != "Completed processing your question"
 
     return {
-        "status": status,
+        "status_message": status,
         "size": message_count,
         "loading": loading
     }
 
 async def get_user_sessions(user_id: str, db: Session):
     user_sessions = db.query(UserSession).filter(UserSession.user_id == user_id).all()
-    return {"user_id": user_id, "session_ids": [session.session_id for session in user_sessions]}
+    return {"user_id": user_id, "sessionIds": [session.sessionId for session in user_sessions]}
+
+from datetime import datetime, timezone
 
 async def get_all_sessions(db: Session):
     user_sessions = db.query(UserSession).all()
-    return {"session_ids": [session.session_id for session in user_sessions]}
+    return {
+        "generatedAt": user_sessions[0].created_at.isoformat() if user_sessions else datetime.now(timezone.     ).isoformat(),
+        "sessions": [
+            {
+                "sessionId": session.sessionId,
+                "label": session.session_name or f"Session {session.sessionId[:8]}",
+                "lastModified": session.updated_at.isoformat() if session.updated_at else session.created_at.isoformat()
+            }
+            for session in user_sessions
+        ]
+    }
 
-async def text_sql_generation(question: str, session_id: str, db: Session):
+async def text_sql_generation(question: str, sessionId: str, db: Session):
     try:
         # Fetch or create memory for the session
-        memory_store = db.query(MemoryStore).filter(MemoryStore.session_id == session_id).first()
+        memory_store = db.query(MemoryStore).filter(MemoryStore.sessionId == sessionId).first()
         if not memory_store:
-            memory_store = MemoryStore(session_id=session_id, memory="")
+            memory_store = MemoryStore(sessionId=sessionId, memory="")
             db.add(memory_store)
             db.commit()
 
@@ -101,7 +113,7 @@ async def text_sql_generation(question: str, session_id: str, db: Session):
         mira_prompt = PromptTemplate(
             input_variables=["chat_history", "input", "memory_store"], template=mira_template
         )
-        history = get_chat_history(db, session_id)
+        history = get_chat_history(db, sessionId)
         mira_chain = LLMChain(
             llm=llm, prompt=mira_prompt, verbose=False
         )
@@ -121,17 +133,17 @@ async def text_sql_generation(question: str, session_id: str, db: Session):
         print(f"Error in text generation: {str(e)}")
         return f"I apologize, but I encountered an error while processing your request. Could you please rephrase your question?"
 
-async def process_chat(session_id: str, question: str, db: Session):
+async def process_chat(sessionId: str, question: str, db: Session):
     try:
-        user_message = ChatMessage(session_id=session_id, message_type="user", content=question)
+        user_message = ChatMessage(sessionId=sessionId, message_type="user", content=question)
         db.add(user_message)
         db.commit()
-        bot_response_future = asyncio.create_task(text_sql_generation(question, session_id, db))
+        bot_response_future = asyncio.create_task(text_sql_generation(question, sessionId, db))
 
         # Wait for the bot response
         bot_response = await bot_response_future
 
-        bot_message = ChatMessage(session_id=session_id, message_type="bot", content=bot_response)
+        bot_message = ChatMessage(sessionId=sessionId, message_type="bot", content=bot_response)
         db.add(bot_message)
         db.commit()
     except Exception as e:
@@ -140,18 +152,31 @@ async def process_chat(session_id: str, question: str, db: Session):
     finally:
         db.close()
 
-async def get_messages(session_id: str, limit: int, db: Session):
-    messages = db.query(ChatMessage).filter(
-        ChatMessage.session_id == session_id
-    ).order_by(desc(ChatMessage.id)).limit(limit).all()
+async def get_messages(sessionId: str, startOffset: int, endOffset: int | None, db: Session):
+    query = db.query(ChatMessage).filter(
+        ChatMessage.sessionId == sessionId
+    )  # Assuming id is used as a timestamp
+
+    # Apply offset
+    query = query.offset(startOffset)
+
+    # Apply limit if endOffset is provided
+    if endOffset is not None:
+        limit = endOffset - startOffset + 1
+        query = query.limit(limit)
+
+    messages = query.all()
 
     if not messages:
         raise HTTPException(status_code=404, detail="No messages found for this session")
 
-    return [
-        MessageResponse(
-            content=msg.content,
-            message_type=msg.message_type,
-            timestamp=msg.id  # Assuming id is used as a timestamp, adjust if needed
-        ) for msg in reversed(messages)
-    ]
+    return {
+        "messages": [
+            MessageResponse(
+                messageId=msg.id,
+                message=msg.content,
+                profile=msg.message_type,  # Assuming message_type corresponds to profile
+                time=msg.timestamp  # Assuming there's a timestamp field, adjust if needed
+            ) for msg in messages
+        ]
+    }
