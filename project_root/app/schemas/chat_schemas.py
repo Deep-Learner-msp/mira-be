@@ -4,15 +4,18 @@ from datetime import datetime
 
 class UserQuestion(BaseModel):
     question: str
-    session_id: Optional[str] = None
+    sessionId: Optional[str] = None
 
 class SessionStatus(BaseModel):
-    session_id: str
+    sessionId: str
 
 class MessageResponse(BaseModel):
-    content: str
-    message_type: str
-    timestamp: datetime
+    messageId: int
+    message: str
+    profile: str
+    time: datetime
 
-    class Config:
-        orm_mode = True
+class MessageRequest(BaseModel):
+    sessionId: str
+    startOffset: int
+    endOffset: int
