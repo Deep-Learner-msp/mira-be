@@ -15,9 +15,6 @@ class MessageResponse(BaseModel):
     profile: str
     time: datetime
 
-    class Config:
-        orm_mode = True
-
 class MessageRequest(BaseModel):
     sessionId: str
     startOffset: int

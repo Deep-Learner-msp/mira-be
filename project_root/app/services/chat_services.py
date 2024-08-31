@@ -108,7 +108,7 @@ async def text_sql_generation(question: str, sessionId: str, db: Session):
             input_variables=["chat_history", "input", "memory_store"], template=memory_template
         )
         memory_chain = LLMChain(
-            llm=llm, prompt=memory_prompt, verbose=True
+            llm=llm, prompt=memory_prompt, verbose=False
         )
         mira_prompt = PromptTemplate(
             input_variables=["chat_history", "input", "memory_store"], template=mira_template
@@ -155,7 +155,7 @@ async def process_chat(sessionId: str, question: str, db: Session):
 async def get_messages(sessionId: str, startOffset: int, endOffset: int | None, db: Session):
     query = db.query(ChatMessage).filter(
         ChatMessage.sessionId == sessionId
-    )  # Assuming id is used as a timestamp
+    ).order_by(ChatMessage.id.asc())  # Add ORDER BY clause
 
     # Apply offset
     query = query.offset(startOffset)
