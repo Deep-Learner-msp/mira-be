@@ -30,7 +30,7 @@ load_dotenv()
 def get_chat_history(db: Session, sessionId: str) -> str:
     messages: List[ChatMessage] = db.query(ChatMessage).filter(
         ChatMessage.sessionId == sessionId
-    ).order_by(ChatMessage.id.desc()).limit(5).all()
+    ).order_by(ChatMessage.id.desc()).limit(10).all()
     
     chat_history = ""
     for msg in reversed(messages):
