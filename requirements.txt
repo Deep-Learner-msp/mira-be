@@ -1,6 +1,0 @@
-langchain
-langchain-community
-langchain-core
-langchain-openai
-chainlit
-python-dotenv
