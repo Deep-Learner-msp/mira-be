@@ -30,10 +30,10 @@ load_dotenv()
 def get_chat_history(db: Session, sessionId: str) -> str:
     messages: List[ChatMessage] = db.query(ChatMessage).filter(
         ChatMessage.sessionId == sessionId
-    ).all()
+    ).order_by(ChatMessage.id.desc()).limit(5).all()
     
     chat_history = ""
-    for msg in messages:
+    for msg in reversed(messages):
         chat_history += f"{'Human' if msg.message_type == 'user' else 'AI'}: {msg.content}\n"
     return chat_history
 
