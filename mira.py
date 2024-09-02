@@ -251,7 +251,7 @@ Memory store: {{memory_store}}
 Chat history: {{chat_history}}
 User input: {{input}}
 
-Provide very very crisp and natural answers in MD Format.
+Provide very very crisp and natural answers, starts with a warm, personalized greeting and ask user name if not known in MD Format.
 
 """
 
