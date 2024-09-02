@@ -296,6 +296,7 @@ async def on_chat_start():
     cl.user_session.set("mira_chain", mira_chain)
     cl.user_session.set("memo", "")
     cl.user_session.set("session_id", session_id)
+    cl.user_session.set("number_of_messages", 0)
 
 @cl.on_message
 async def on_message(message: cl.Message):
@@ -304,20 +305,30 @@ async def on_message(message: cl.Message):
     memo = cl.user_session.get("memo")
     session_id = cl.user_session.get("session_id")
     mira_chain = cl.user_session.get("mira_chain")
+    number_of_messages = cl.user_session.get("number_of_messages")
     msg = cl.Message(content="")
-    memo = memory_chain.predict(memory_store=memo, input=message.content, chat_history=memory,)
-    print(memo)
-    cl.user_session.set("memo", memo)
-    async for chunk in mira_chain.astream(
-        {"input": message.content, "memory_store":memo},
-        config={"configurable": {"session_id": session_id}},
-    ):
+    if number_of_messages < 50:
+        cl.user_session.set("number_of_messages", number_of_messages + 1)
 
-        await msg.stream_token(chunk['text'])
+        memo = memory_chain.predict(memory_store=memo, input=message.content, chat_history=memory,)
+        print(memo)
+        cl.user_session.set("memo", memo)
+        async for chunk in mira_chain.astream(
+            {"input": message.content, "memory_store":memo},
+            config={"configurable": {"session_id": session_id}},
+        ):
 
-    await msg.send()
-
-
+            await msg.stream_token(chunk['text'])
+        await msg.send()
+    else:
+        await cl.Message(content="""## Thank You for Participating in the Beta Testing of MIRA!
+We truly appreciate your involvement and feedback during our beta phase. Your insights have been invaluable in helping us refine and improve MIRA.
+As we reach the end of our free trial period, we want to thank you for your support and contributions. Although the free trial has concluded, your feedback remains crucial to us.
+We invite you to share your thoughts and experiences by providing feedback. Additionally, if you'd like to continue using MIRA, please [join our waitlist](#) for future updates and access opportunities.
+Thank you once again for being a part of our journey!
+Best regards,  
+The MIRA Team
+""").send()
 
 
  
