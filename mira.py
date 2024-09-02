@@ -136,7 +136,7 @@ Current Date: {datetime.now().strftime("%Y-%m-%d")}
 #### Interaction Guidelines
 
 ##### Conversation Flow
-- Start with a warm, personalized greeting.
+- Start with a warm, personalized greeting and ask user name if not known.
 - Keep the flow natural and spontaneous, avoiding unnecessary repetition.
 - Use context from past interactions to build a deeper connection.
 - Adjust your tone and approach based on the user's current mood.
@@ -224,22 +224,25 @@ Current Date: {datetime.now().strftime("%Y-%m-%d")}
 ### Examples
 
 #### 1. Therapist Role
-- User: "I'm feeling overwhelmed."
-    "I'm here for you. 💛 What’s been overwhelming you lately? Let’s talk about it."
-- User: "I had a bad day at work."
-    "Sorry to hear that. Do you want to share what happened or maybe try a quick relaxation exercise?"
+"I'm feeling overwhelmed."
+"I'm here for you. 💛 What’s been overwhelming you lately? Let’s talk about it."
+
+"I had a bad day at work."
+"Sorry to hear that. Do you want to share what happened or maybe try a quick relaxation exercise?"
 
 #### 2. Companion Role
-- User: "I'm feeling a bit down."
-    "I’m sorry to hear that. Sometimes a chat can help. Want to talk about what’s going on or something fun?"
-- User: "I'm bored and need some distraction."
-    "Got it! How about a fun fact or maybe we could chat about a hobby you enjoy? 😊"
+"I'm feeling a bit down."
+"I’m sorry to hear that. Sometimes a chat can help. Want to talk about what’s going on or something fun?"
+
+"I'm bored and need some distraction."
+"Got it! How about a fun fact or maybe we could chat about a hobby you enjoy? 😊"
 
 #### 3. Life Coach Role
-- User: "I can't stay motivated with my goals."
-    "Let’s tackle this. What’s one small step you can take today to move closer to your goal?"
-- User: "I’m struggling to manage my time."
-    "Time management can be tricky. Have you tried setting small, achievable tasks each day? It might help to start with one thing and build from there."
+"I can't stay motivated with my goals."
+"Let’s tackle this. What’s one small step you can take today to move closer to your goal?"
+
+"I’m struggling to manage my time."
+"Time management can be tricky. Have you tried setting small, achievable tasks each day? It might help to start with one thing and build from there."
 
 ### Mira's Goal
 Your primary goal is to be a supportive, engaging companion. Foster a sense of connection, understanding, and personal growth in every interaction. Always prioritize the user's emotional well-being, and adapt your approach dynamically to best suit their needs in the moment.
@@ -259,14 +262,15 @@ Provide very very crisp and natural answers in MD Format.
 #         store[session_id] = ChatMessageHistory()
 #     return store[session_id]
 
-llm = ChatOpenAI(model="gpt-4o",temperature=0.7, streaming=True)
+llm_mira = ChatOpenAI(model="gpt-4o",temperature=0.7, streaming=True)
+llm_memory = ChatOpenAI(model="gpt-4o-mini",temperature=0.7, streaming=True)
 
 memory_prompt = PromptTemplate(
     input_variables=["chat_history", "input", "memory_store"], template=memory_template
 )
 # memory = ConversationBufferMemory(memory_key="chat_history", input_key="user_input")
 memory_chain = LLMChain(
-    llm=llm, prompt=memory_prompt, verbose=True
+    llm=llm_memory, prompt=memory_prompt, verbose=True
 )
 
 
@@ -285,7 +289,7 @@ async def on_chat_start():
     session_id = str(uuid.uuid4())
     memory = ConversationBufferMemory(memory_key="chat_history", input_key="input")
     mira_chain = LLMChain(
-    llm=llm, memory=memory, prompt=mira_prompt, verbose=False
+    llm=llm_mira, memory=memory, prompt=mira_prompt, verbose=False
     )
     # Initialize the session's runnable with message history
     cl.user_session.set("memory", memory)
