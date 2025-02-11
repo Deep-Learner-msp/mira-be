@@ -300,3 +300,11 @@ Thank you once again for being a part of our journey!
 Best regards,  
 The MIRA Team
 """).send()
+import os
+import chainlit as cl
+
+# Get PORT from Azure (or default to 8000)
+port = int(os.getenv("PORT", 8000))
+
+# Start Chainlit with the assigned port
+cl.run(host="0.0.0.0", port=port)
